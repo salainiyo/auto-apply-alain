@@ -4,6 +4,8 @@ from app.services.role_service import extract_roles_for_resume
 from app.services.resume_service import run_conversion
 from app.workers.celery_app import celery_app
 
+DASHBOARD_WINDOW_DAYS = 14  # Available -> Archived after 2 weeks unapplied
+
 
 @celery_app.task(
     name="app.workers.tasks.convert_resume_pdf",
@@ -67,3 +69,32 @@ async def _search_all_users():
             search_jobs_for_user.delay(str(user_id))
         except Exception as exc:
             logger.warning("periodic_search_dispatch_failed user_id=%s error=%s", user_id, exc)
+
+
+@celery_app.task(name="app.workers.tasks.archive_expired_matches")
+def archive_expired_matches() -> None:
+    """Beat task: move Available matches older than 14 days to Archived."""
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import update
+
+    from app.db import database_sync
+    from app.db.models import JobMatch
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=DASHBOARD_WINDOW_DAYS)
+
+    with database_sync.SyncSessionLocal() as db:
+        result = db.execute(
+            update(JobMatch)
+            .where(
+                JobMatch.status == "available",
+                JobMatch.created_at < cutoff,
+            )
+            .values(status="archived")
+            .returning(JobMatch.id)
+        )
+        archived_ids = result.scalars().all()
+        db.commit()
+
+    if archived_ids:
+        logger.info("matches_auto_archived count=%s", len(archived_ids))

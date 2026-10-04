@@ -16,11 +16,15 @@ celery_app.conf.update(
     accept_content=["json"],
     timezone="UTC",
     enable_utc=True,
-    # periodic job search: every 6 hours
+    # periodic job search: every 6 hours; auto-archive daily
     beat_schedule={
         "periodic-job-search": {
             "task": "app.workers.tasks.run_periodic_job_search",
             "schedule": crontab(minute=0, hour="*/6"),
+        },
+        "archive-expired-matches": {
+            "task": "app.workers.tasks.archive_expired_matches",
+            "schedule": crontab(minute=30, hour=0),
         },
     },
 )

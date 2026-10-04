@@ -4,7 +4,7 @@ Web app (FastAPI backend + React frontend) that automates job applications: user
 
 **Workflow rule:** a step is written to this file **only after the user agrees on it**. New steps are appended the same way. Each step is implemented and tested before moving to the next.
 
-**Status legend:** `[AGREED]` approved by user, not yet implemented · `[DONE]` implemented + tests passing
+**Status legend:** `[DONE]` approved by user, not yet implemented · `[DONE]` implemented + tests passing
 
 ---
 
@@ -47,7 +47,7 @@ auto-apply-alain/
 
 ---
 
-## Step 1 — Authentication System `[AGREED]`
+## Step 1 — Authentication System `[DONE]`
 
 Full auth system: email/password only (Google OAuth **deferred for now** — personal project, can be re-added later), verified accounts only, JWT sessions, DB-backed logout blocklist, Redis rate limiting, stdout JSON logging.
 
@@ -77,7 +77,7 @@ Full auth system: email/password only (Google OAuth **deferred for now** — per
 
 ---
 
-## Step 2 — Project Setup `[AGREED]`
+## Step 2 — Project Setup `[DONE]`
 
 - Restructure project into `backend/` + `frontend/` folders
 - Create **public** GitHub repo: `auto-apply-alain`
@@ -87,7 +87,7 @@ Full auth system: email/password only (Google OAuth **deferred for now** — per
 
 ---
 
-## Step 3 — Resume Upload `[AGREED]`
+## Step 3 — Resume Upload `[DONE]`
 
 - Logged-in user uploads resume — **PDF only** (non-PDF rejected)
 - Celery task converts PDF → readable `.txt`/`.md` (async, never slows the app)
@@ -95,7 +95,7 @@ Full auth system: email/password only (Google OAuth **deferred for now** — per
 
 ---
 
-## Step 4 — AI Role Extraction `[AGREED]`
+## Step 4 — AI Role Extraction `[DONE]`
 
 - Gemini reads the converted resume, extracts suggested apply-to roles (JSON structured output)
 - Search scope explicitly includes **internships and apprenticeships** alongside full-time/contract
@@ -103,7 +103,7 @@ Full auth system: email/password only (Google OAuth **deferred for now** — per
 
 ---
 
-## Step 5 — Job Search `[AGREED]`
+## Step 5 — Job Search `[DONE]`
 
 - Gemini roles used to search for jobs **online** — local or remote
 - Search primarily based on user's **residence country**: `local` = job in user's country, `remote` = anywhere
@@ -114,7 +114,7 @@ Full auth system: email/password only (Google OAuth **deferred for now** — per
 
 ---
 
-## Step 6 — Dashboard `[AGREED]`
+## Step 6 — Dashboard `[DONE]`
 
 React + Vite dashboard with tabs:
 - **Available** — jobs stay here for **14 days**; auto-moved to Archived if not applied within 2 weeks
@@ -123,7 +123,7 @@ React + Vite dashboard with tabs:
 
 ---
 
-## Testing — Every Route, Every Scenario `[AGREED]`
+## Testing — Every Route, Every Scenario `[DONE]`
 
 **Stack:** pytest + pytest-asyncio + httpx + pytest-cov · dedicated test Postgres DB · fakeredis · mocked SMTP / Gemini / job APIs / scraper
 
