@@ -1,4 +1,5 @@
 from celery import Celery
+from celery.schedules import crontab
 
 from app.core.config import settings
 
@@ -15,4 +16,11 @@ celery_app.conf.update(
     accept_content=["json"],
     timezone="UTC",
     enable_utc=True,
+    # periodic job search: every 6 hours
+    beat_schedule={
+        "periodic-job-search": {
+            "task": "app.workers.tasks.run_periodic_job_search",
+            "schedule": crontab(minute=0, hour="*/6"),
+        },
+    },
 )
