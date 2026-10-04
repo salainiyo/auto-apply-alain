@@ -4,10 +4,12 @@ from types import SimpleNamespace
 import pytest_asyncio
 from fakeredis import aioredis as fakeredis_aioredis
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.orm import sessionmaker
 
 from app.core.security import create_email_verify_token
+from app.db import database_sync
 from app.db.database import Base, get_db
 from app.db.models import User
 from app.main import app
@@ -15,6 +17,7 @@ from app.middleware.redis_client import get_redis
 from app.services import email_service
 
 CONTAINER_DB_URL = "postgresql+asyncpg://alain:changepassword@localhost:5433"
+CONTAINER_SYNC_URL = "postgresql://alain:changepassword@localhost:5433"
 TEST_DB_NAME = "auto_apply_test"
 TEST_DB_URL = f"{CONTAINER_DB_URL}/{TEST_DB_NAME}"
 
@@ -48,6 +51,10 @@ async def ctx(monkeypatch):
 
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
 
+    sync_engine = create_engine(f"{CONTAINER_SYNC_URL}/{TEST_DB_NAME}")
+    sync_session_factory = sessionmaker(bind=sync_engine, expire_on_commit=False)
+    monkeypatch.setattr(database_sync, "SyncSessionLocal", sync_session_factory)
+
     async def override_get_db():
         async with session_factory() as session:
             yield session
@@ -72,6 +79,7 @@ async def ctx(monkeypatch):
 
     app.dependency_overrides.clear()
     await engine.dispose()
+    sync_engine.dispose()
 
 
 async def get_user_id(ctx, email: str = DEFAULT_EMAIL):
