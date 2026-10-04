@@ -32,7 +32,9 @@ export default function JobList({ status, refreshKey, onApplied }) {
   const load = () =>
     api.getMatches(status).then(setJobs).catch((err) => setError(err.message))
 
-  useEffect(load, [status, refreshKey])
+  useEffect(() => {
+    load()
+  }, [status, refreshKey])
 
   const apply = async (id) => {
     setBusyId(id)

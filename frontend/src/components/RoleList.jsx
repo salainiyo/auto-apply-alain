@@ -8,7 +8,9 @@ export default function RoleList({ refreshKey }) {
 
   const load = () => api.getRoles().then(setRoles).catch((err) => setMessage(err.message))
 
-  useEffect(load, [refreshKey])
+  useEffect(() => {
+    load()
+  }, [refreshKey])
 
   const extract = async () => {
     setBusy(true)
