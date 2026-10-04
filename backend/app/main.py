@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api.routes import auth, resumes, users
+from app.api.routes import auth, resumes, roles, users
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.db.database import Base, engine
@@ -26,6 +26,7 @@ app.add_middleware(RequestLoggingMiddleware)
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(resumes.router)
+app.include_router(roles.router)
 
 
 @app.get("/health", tags=["health"])

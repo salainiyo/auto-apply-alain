@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     emails_from: str = ""
 
     gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.5-flash"
 
 
 settings = Settings()
