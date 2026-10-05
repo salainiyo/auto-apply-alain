@@ -113,6 +113,22 @@ async def test_search_creates_available_matches(ctx, monkeypatch):
     assert {j["source"] for j in data} == {"remotive", "arbeitnow"}
 
 
+async def test_matches_ordered_local_first(ctx, monkeypatch):
+    headers, _, user_id = await _setup_user_with_roles(ctx, monkeypatch)
+    monkeypatch.setattr(job_sources, "fetch_remotive", lambda kw: [FAKE_REMOTE])
+    monkeypatch.setattr(job_sources, "fetch_remoteok", lambda kw: [])
+    monkeypatch.setattr(job_sources, "fetch_arbeitnow", lambda kw: [FAKE_LOCAL])
+    monkeypatch.setattr(job_sources, "scrape_weworkremotely", lambda kw: [])
+
+    await _run_search(ctx, user_id)
+
+    resp = await ctx.client.get("/jobs/matches", headers=headers)
+    assert resp.status_code == 200
+    localities = [i["locality"] for i in resp.json()]
+    assert localities[0] == "local"
+    assert set(localities) == {"local", "remote"}
+
+
 async def test_non_expired_filter(ctx, monkeypatch):
     _, _, user_id = await _setup_user_with_roles(ctx, monkeypatch)
     monkeypatch.setattr(job_sources, "fetch_remotive", lambda kw: [])

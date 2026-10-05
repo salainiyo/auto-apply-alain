@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from uuid import UUID
 
@@ -55,10 +55,12 @@ async def list_matches(
             detail="status must be one of: available, applied, archived",
         )
 
+    # local jobs first, then remote; newest first within each group
+    locality_rank = case((JobMatch.locality == "local", 0), else_=1)
     result = await db.execute(
         select(JobMatch)
         .where(JobMatch.user_id == current_user.id, JobMatch.status == status_filter)
-        .order_by(JobMatch.created_at.desc())
+        .order_by(locality_rank, JobMatch.created_at.desc())
     )
     return result.scalars().all()
 
