@@ -2,6 +2,7 @@ services:
   postgres:
     image: postgres:16
     container_name: auto-apply-db
+    restart: unless-stopped
     environment:
       POSTGRES_USER: alain
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changepassword}
@@ -19,6 +20,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: auto-apply-redis
+    restart: unless-stopped
     ports:
       - "6380:6379"
     healthcheck:
@@ -30,6 +32,7 @@ services:
   backend:
     build: ./backend
     container_name: auto-apply-backend
+    restart: unless-stopped
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://alain:${POSTGRES_PASSWORD:-changepassword}@postgres:5432/auto_apply
@@ -52,6 +55,7 @@ services:
   celery-worker:
     build: ./backend
     container_name: auto-apply-worker
+    restart: unless-stopped
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://alain:${POSTGRES_PASSWORD:-changepassword}@postgres:5432/auto_apply
@@ -71,6 +75,7 @@ services:
   celery-beat:
     build: ./backend
     container_name: auto-apply-beat
+    restart: unless-stopped
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://alain:${POSTGRES_PASSWORD:-changepassword}@postgres:5432/auto_apply
@@ -88,6 +93,7 @@ services:
   frontend:
     build: ./frontend
     container_name: auto-apply-frontend
+    restart: unless-stopped
     environment:
       VITE_PROXY_TARGET: http://backend:8000
     ports:

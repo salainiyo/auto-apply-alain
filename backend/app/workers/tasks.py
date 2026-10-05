@@ -1,3 +1,4 @@
+from app.core.config import settings
 from app.core.logging import logger
 from app.services.job_search_service import search_jobs_for_user as search_jobs_service
 from app.services.role_service import extract_roles_for_resume
@@ -29,17 +30,26 @@ def extract_roles_from_resume(resume_id: str) -> None:
 
 @celery_app.task(name="app.workers.tasks.search_jobs_for_user")
 def search_jobs_for_user(user_id: str) -> None:
-    """Run a job search for one user (new event loop for Celery context)."""
+    """Run a job search for one user.
+
+    A fresh engine is created per invocation: asyncpg connections are bound to
+    the event loop they were created in, and each celery run gets a new loop.
+    """
     import asyncio
 
     asyncio.run(_search(user_id))
 
 
 async def _search(user_id: str):
-    from app.db.database import SessionLocal
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-    async with SessionLocal() as db:
-        await search_jobs_service(db, user_id)
+    engine = create_async_engine(settings.database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with session_factory() as db:
+            await search_jobs_service(db, user_id)
+    finally:
+        await engine.dispose()
 
 
 @celery_app.task(name="app.workers.tasks.run_periodic_job_search")
@@ -52,17 +62,22 @@ def run_periodic_job_search() -> None:
 
 async def _search_all_users():
     from sqlalchemy import select
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-    from app.db.database import SessionLocal
     from app.db.models import Resume, User
 
-    async with SessionLocal() as db:
-        result = await db.execute(
-            select(User.id)
-            .join(Resume, Resume.user_id == User.id)
-            .where(User.is_verified.is_(True), Resume.is_current.is_(True))
-        )
-        user_ids = result.scalars().all()
+    engine = create_async_engine(settings.database_url)
+    session_factory = async_sessionmaker(engine, expire_on_commit=False)
+    try:
+        async with session_factory() as db:
+            result = await db.execute(
+                select(User.id)
+                .join(Resume, Resume.user_id == User.id)
+                .where(User.is_verified.is_(True), Resume.is_current.is_(True))
+            )
+            user_ids = result.scalars().all()
+    finally:
+        await engine.dispose()
 
     for user_id in user_ids:
         try:

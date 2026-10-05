@@ -21,6 +21,15 @@ def _parse_date(value) -> datetime | None:
         return None
     if isinstance(value, datetime):
         return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    # unix timestamps (seconds; milliseconds heuristically converted)
+    if isinstance(value, (int, float)) or (isinstance(value, str) and value.isdigit()):
+        try:
+            ts = float(value)
+            if ts > 1e12:
+                ts /= 1000
+            return datetime.fromtimestamp(ts, tz=timezone.utc)
+        except (ValueError, OSError, OverflowError):
+            pass
     try:
         return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     except ValueError:
@@ -90,7 +99,7 @@ def fetch_remoteok(keywords: str) -> list[dict]:
 
     jobs = []
     for job in data or []:
-        if not isinstance(job) or not job.get("position"):
+        if not isinstance(job, dict) or not job.get("position"):
             continue  # first element is a legal notice
         jobs.append(
             _listing(
