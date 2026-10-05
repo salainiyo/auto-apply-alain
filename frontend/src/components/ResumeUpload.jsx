@@ -13,9 +13,10 @@ export default function ResumeUpload({ onUploaded }) {
       return
     }
     setBusy(true)
+    setStatus({ ok: true, text: 'Uploading…' })
     try {
       const data = await api.uploadResume(file)
-      setStatus({ ok: true, text: `Uploaded "${data.original_filename}" — converting to .txt in the background...` })
+      setStatus({ ok: true, text: `Uploaded "${data.original_filename}" (${data.status}).` })
       if (fileRef.current) fileRef.current.value = ''
       onUploaded?.()
     } catch (err) {
@@ -27,11 +28,17 @@ export default function ResumeUpload({ onUploaded }) {
 
   return (
     <div className="card">
-      <h2>Resume</h2>
-      <p className="muted">PDF only, max 10 MB. Uploading a new resume replaces the current one.</p>
-      <input ref={fileRef} type="file" accept="application/pdf,.pdf" />
-      <button onClick={upload} disabled={busy}>{busy ? 'Uploading...' : 'Upload resume'}</button>
-      {status && <p className={status.ok ? 'message' : 'error'}>{status.text}</p>}
+      <h2 className="text-sm font-semibold text-gray-900">Resume</h2>
+      <p className="mt-1 text-xs text-gray-400">PDF only, max 10 MB. Uploading a new one replaces the current resume.</p>
+      <div className="mt-3 flex items-center gap-3">
+        <input ref={fileRef} type="file" accept="application/pdf,.pdf" className="text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100" />
+        <button onClick={upload} disabled={busy} className="btn-primary shrink-0">
+          {busy ? 'Uploading…' : 'Upload'}
+        </button>
+      </div>
+      {status && (
+        <p className={`mt-3 text-sm ${status.ok ? 'text-gray-600' : 'text-red-600'}`}>{status.text}</p>
+      )}
     </div>
   )
 }

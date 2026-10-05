@@ -78,6 +78,10 @@ export const api = {
     fetch(`/jobs/matches?status_filter=${status}`, { headers: jsonHeaders() }).then(handle),
   applyMatch: (id) =>
     fetch(`/jobs/matches/${id}/apply`, { method: 'POST', headers: jsonHeaders() }).then(handle),
+  applyAuto: (id) =>
+    fetch(`/jobs/matches/${id}/apply-auto`, { method: 'POST', headers: jsonHeaders() }).then(handle),
+  getApplication: (id) =>
+    fetch(`/jobs/matches/${id}/application`, { headers: jsonHeaders() }).then(handle),
 
   getSummary: () => fetch('/dashboard/summary', { headers: jsonHeaders() }).then(handle),
   getStatus: () => fetch('/dashboard/status', { headers: jsonHeaders() }).then(handle),
