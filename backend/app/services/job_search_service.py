@@ -82,7 +82,7 @@ def collect_listings_for_role(role: Role, country: str) -> list[dict]:
             listings.append(listing)
 
     # web search for in-country local postings, kept alongside the free-API results
-    listings.extend(job_sources.fetch_web_local(keywords, country))
+    listings.extend(job_sources.fetch_web_local(role.title, country))
 
     return listings
 

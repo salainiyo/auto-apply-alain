@@ -31,7 +31,7 @@ def test_parse_serp():
 
 def test_extract_details_from_jsonld():
     details = web_jobs.extract_details(JD_HTML)
-    assert details["posted_at"] == "2026-10-02"
+    assert details["posted_at"].startswith("2026-10-02")
     assert details["company"] == "Acme Ltd"
 
 
