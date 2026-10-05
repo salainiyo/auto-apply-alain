@@ -108,7 +108,7 @@ Full auth system: email/password only (Google OAuth **deferred for now** — per
 - Gemini roles used to search for jobs **online** — local or remote
 - Search primarily based on user's **residence country**: `local` = job in user's country, `remote` = anywhere
 - **Non-expired jobs only**
-- Sources: **free job APIs** (Remotive, RemoteOK, Arbeitnow) + **scraping** selected boards (respecting robots.txt/ToS, rate-limited, run as Celery tasks; Beat for periodic re-search)
+- Sources: **free job APIs** (Remotive, RemoteOK, Arbeitnow) + **WeWorkRemotely RSS** + **web search for local jobs** (DuckDuckGo results, since Google blocks scraping) (respecting robots.txt/ToS, rate-limited, run as Celery tasks; Beat for periodic re-search)
 - **Dedup:** each match gets a fingerprint (company + title + source URL + posting date) stored per user in `job_matches`; a job already presented (any tab) is **never re-presented** unless it is a **reopened position** (new posting date → new fingerprint → re-enters Available)
 - Found jobs presented on user dashboard with an **Apply** option
 

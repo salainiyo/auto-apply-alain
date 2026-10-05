@@ -63,7 +63,7 @@ async def existing_fingerprints(db: AsyncSession, user_id) -> set[str]:
     return set(result.scalars().all())
 
 
-def collect_listings_for_role(role: Role) -> list[dict]:
+def collect_listings_for_role(role: Role, country: str) -> list[dict]:
     """Query every source for one role. Sources fail soft (errors -> empty list)."""
     keywords = role.keywords or role.title
     listings: list[dict] = []
@@ -80,6 +80,9 @@ def collect_listings_for_role(role: Role) -> list[dict]:
     for listing in job_sources.scrape_weworkremotely(keywords):
         if job_sources.matches_keyword(listing["title"], listing["company"], keywords):
             listings.append(listing)
+
+    # web search for in-country local postings, kept alongside the free-API results
+    listings.extend(job_sources.fetch_web_local(keywords, country))
 
     return listings
 
@@ -111,7 +114,7 @@ async def search_jobs_for_user(db: AsyncSession, user_id) -> list[JobMatch]:
         seen_this_run: set[str] = set()
 
         for role in roles:
-            for listing in collect_listings_for_role(role):
+            for listing in collect_listings_for_role(role, user.country):
                 if is_expired(listing):
                     continue
 

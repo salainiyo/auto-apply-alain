@@ -194,3 +194,14 @@ def matches_keyword(title: str, company: str, keywords: str) -> bool:
     haystack = f"{title} {company}".lower()
     words = re.findall(r"[a-z0-9+#.]+", keywords.lower())
     return any(word in haystack for word in words if len(word) > 2)
+
+
+def fetch_web_local(keyword: str, country: str) -> list[dict]:
+    """Local jobs found on the open web for the given country."""
+    try:
+        from app.services import web_jobs
+
+        return web_jobs.fetch_web_local(keyword, country)
+    except Exception as exc:
+        logger.warning("job_source_failed source=web error=%s", exc)
+        return []

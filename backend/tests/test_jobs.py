@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pdfplumber
+import pytest
 from sqlalchemy import select
 
 from app.db.models import JobMatch, User
@@ -61,6 +62,13 @@ FAKE_FOREIGN = listing(
     "Python Data Analyst", "Paris SA", "https://jobs.example/3",
     source="arbeitnow", location="Paris, France", is_remote=False,
 )
+
+
+@pytest.fixture(autouse=True)
+def _no_real_web_fetch(monkeypatch):
+    from app.services import job_sources
+
+    monkeypatch.setattr(job_sources, "fetch_web_local", lambda kw, country: [])
 
 
 async def _setup_user_with_roles(ctx, monkeypatch, email="jobber@test.com", extract_roles=True):

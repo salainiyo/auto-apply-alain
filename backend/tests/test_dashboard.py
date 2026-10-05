@@ -132,6 +132,7 @@ async def test_search_sets_last_search_at(ctx, monkeypatch):
     from app.services import job_sources
 
     monkeypatch.setattr(job_sources, "fetch_remotive", lambda kw: [])
+    monkeypatch.setattr(job_sources, "fetch_web_local", lambda kw, country: [])
     monkeypatch.setattr(job_sources, "fetch_remoteok", lambda kw: [])
     monkeypatch.setattr(job_sources, "fetch_arbeitnow", lambda kw: [])
     monkeypatch.setattr(job_sources, "scrape_weworkremotely", lambda kw: [])
