@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api.routes import auth, dashboard, jobs, resumes, roles, users
+from app.api.routes import auth, dashboard, jobs, resumes, roles, users, ws
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.db.database import Base, engine
@@ -29,6 +29,7 @@ app.include_router(resumes.router)
 app.include_router(roles.router)
 app.include_router(jobs.router)
 app.include_router(dashboard.router)
+app.include_router(ws.router)
 
 
 @app.get("/health", tags=["health"])

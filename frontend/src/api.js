@@ -18,6 +18,22 @@ export async function waitForStatus(checkFn, { intervalMs = 2500, timeoutMs = 18
   return null
 }
 
+export function connectProgress(onEvent) {
+  const token = getToken()
+  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  const ws = new WebSocket(
+    `${proto}://${window.location.host}/ws/progress?token=${encodeURIComponent(token)}`,
+  )
+  ws.onmessage = (e) => {
+    try {
+      onEvent(JSON.parse(e.data))
+    } catch {
+      // unparseable event — ignore
+    }
+  }
+  return ws
+}
+
 const jsonHeaders = () => ({
   'Content-Type': 'application/json',
   Authorization: `Bearer ${getToken()}`,

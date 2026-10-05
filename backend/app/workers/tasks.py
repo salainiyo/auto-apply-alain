@@ -1,5 +1,10 @@
+from uuid import UUID
+
 from app.core.config import settings
 from app.core.logging import logger
+from app.db import database_sync
+from app.db.models import Resume
+from app.services import progress
 from app.services.job_search_service import search_jobs_for_user as search_jobs_service
 from app.services.role_service import extract_roles_for_resume
 from app.services.resume_service import run_conversion
@@ -8,13 +13,33 @@ from app.workers.celery_app import celery_app
 DASHBOARD_WINDOW_DAYS = 14  # Available -> Archived after 2 weeks unapplied
 
 
+def _resume_owner(resume_id: str) -> str | None:
+    try:
+        with database_sync.SyncSessionLocal() as session:
+            resume = session.get(Resume, UUID(resume_id))
+            return str(resume.user_id) if resume else None
+    except Exception:
+        return None
+
+
 @celery_app.task(
     name="app.workers.tasks.convert_resume_pdf",
     max_retries=3,
     default_retry_delay=10,
 )
 def convert_resume_pdf(resume_id: str) -> None:
+    owner = _resume_owner(resume_id)
+    if owner:
+        progress.publish_progress(owner, "resume_conversion", "started")
+
     status = run_conversion(resume_id)
+
+    if owner:
+        if status == "completed":
+            progress.publish_progress(owner, "resume_conversion", "completed", "Resume converted")
+        else:
+            progress.publish_progress(owner, "resume_conversion", "failed", status)
+
     if status == "completed":
         extract_roles_from_resume.delay(resume_id)
 
@@ -25,7 +50,17 @@ def convert_resume_pdf(resume_id: str) -> None:
     default_retry_delay=10,
 )
 def extract_roles_from_resume(resume_id: str) -> None:
-    extract_roles_for_resume(resume_id)
+    owner = _resume_owner(resume_id)
+    if owner:
+        progress.publish_progress(owner, "role_extraction", "started")
+
+    roles = extract_roles_for_resume(resume_id)
+
+    if owner:
+        if roles is None:
+            progress.publish_progress(owner, "role_extraction", "failed", "Could not extract roles")
+        else:
+            progress.publish_progress(owner, "role_extraction", "completed", f"{len(roles)} roles")
 
 
 @celery_app.task(name="app.workers.tasks.search_jobs_for_user")
@@ -37,17 +72,25 @@ def search_jobs_for_user(user_id: str) -> None:
     """
     import asyncio
 
-    asyncio.run(_search(user_id))
+    progress.publish_progress(user_id, "job_search", "started")
+    try:
+        results = asyncio.run(_search(user_id))
+        added = len(results) if results else 0
+        progress.publish_progress(user_id, "job_search", "completed", f"{added} new matches")
+    except Exception as exc:
+        progress.publish_progress(user_id, "job_search", "failed", str(exc))
+        raise
 
 
 async def _search(user_id: str):
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    from sqlalchemy.pool import NullPool
 
-    engine = create_async_engine(settings.database_url)
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     try:
         async with session_factory() as db:
-            await search_jobs_service(db, user_id)
+            return await search_jobs_service(db, user_id)
     finally:
         await engine.dispose()
 
@@ -63,10 +106,11 @@ def run_periodic_job_search() -> None:
 async def _search_all_users():
     from sqlalchemy import select
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+    from sqlalchemy.pool import NullPool
 
     from app.db.models import Resume, User
 
-    engine = create_async_engine(settings.database_url)
+    engine = create_async_engine(settings.database_url, poolclass=NullPool)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     try:
         async with session_factory() as db:

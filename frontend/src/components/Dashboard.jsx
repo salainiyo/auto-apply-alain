@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, waitForStatus } from '../api.js'
+import { api, connectProgress, waitForStatus } from '../api.js'
 import JobList from './JobList.jsx'
 import ResumeUpload from './ResumeUpload.jsx'
 import RoleList from './RoleList.jsx'
@@ -7,6 +7,9 @@ import RoleList from './RoleList.jsx'
 const TABS = ['available', 'applied', 'archived']
 
 const fmt = (ts) => (ts ? new Date(ts).toLocaleString() : 'never')
+
+const JOB_BUSY = { resume_conversion: 'upload', role_extraction: 'extract', job_search: 'search' }
+const JOB_LABEL = { resume_conversion: 'Resume conversion', role_extraction: 'Role extraction', job_search: 'Job search' }
 
 export default function Dashboard({ onLogout }) {
   const [me, setMe] = useState(null)
@@ -25,6 +28,46 @@ export default function Dashboard({ onLogout }) {
     loadMe()
     loadSummary()
     loadPipeline()
+  }, [])
+
+  // live progress events via WebSocket
+  useEffect(() => {
+    let closed = false
+    let ws = null
+    const connect = () => {
+      try {
+        ws = connectProgress((event) => {
+          if (event.type === 'connected') return
+          const { job, status, detail } = event
+          const label = JOB_LABEL[job] || job
+          if (status === 'started') {
+            setBusy(JOB_BUSY[job] || null)
+            setDoneMsg('')
+          } else if (status === 'completed') {
+            setDoneMsg(`✔ ${label} finished${detail ? ` — ${detail}` : ''}`)
+            setBusy(null)
+            loadSummary()
+            loadPipeline()
+            setRefreshKey((k) => k + 1)
+          } else if (status === 'failed') {
+            setDoneMsg(`✘ ${label} failed${detail ? `: ${detail}` : ''}`)
+            setBusy(null)
+            loadSummary()
+            loadPipeline()
+          }
+        })
+        ws.onclose = () => {
+          if (!closed) setTimeout(connect, 3000)
+        }
+      } catch {
+        if (!closed) setTimeout(connect, 3000)
+      }
+    }
+    connect()
+    return () => {
+      closed = true
+      if (ws) ws.close()
+    }
   }, [])
 
   const refreshAll = () => {

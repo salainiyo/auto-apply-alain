@@ -17,6 +17,7 @@ export default defineConfig({
       '/roles': { target, changeOrigin: true },
       '/jobs': { target, changeOrigin: true },
       '/dashboard': { target, changeOrigin: true },
+      '/ws': { target, ws: true, changeOrigin: true },
     },
   },
 })
