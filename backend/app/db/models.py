@@ -15,6 +15,8 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     is_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     country: Mapped[str] = mapped_column(String(100), nullable=False)
+    last_search_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_extraction_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

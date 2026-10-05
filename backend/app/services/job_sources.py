@@ -101,11 +101,13 @@ def fetch_remoteok(keywords: str) -> list[dict]:
     for job in data or []:
         if not isinstance(job, dict) or not job.get("position"):
             continue  # first element is a legal notice
+        raw_url = (job.get("url") or "").strip()
+        url = raw_url if raw_url.startswith("http") else f"https://remoteok.com{raw_url}"
         jobs.append(
             _listing(
                 title=job.get("position"),
                 company=job.get("company"),
-                url=f"https://remoteok.com{job.get('url', '')}",
+                url=url,
                 source="remoteok",
                 location=job.get("location"),
                 job_type=None,

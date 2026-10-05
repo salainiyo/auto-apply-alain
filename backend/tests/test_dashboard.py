@@ -68,6 +68,98 @@ async def test_dashboard_summary_requires_auth(ctx):
     assert resp.status_code == 401
 
 
+async def test_pipeline_status_empty(ctx):
+    headers = await auth_headers(ctx, email="pipe@test.com")
+    resp = await ctx.client.get("/dashboard/status", headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["resume_status"] == "none"
+    assert data["roles_count"] == 0
+    assert data["available"] == 0
+    assert data["last_extraction_at"] is None
+    assert data["last_search_at"] is None
+
+
+async def test_pipeline_status_requires_auth(ctx):
+    resp = await ctx.client.get("/dashboard/status")
+    assert resp.status_code == 401
+
+
+async def test_pipeline_status_reflects_matches(ctx):
+    headers = await auth_headers(ctx, email="pipe2@test.com")
+    user_id = await _get_user_id(ctx, "pipe2@test.com")
+    await _make_match(ctx, user_id, status="available")
+    await _make_match(ctx, user_id, status="applied")
+
+    resp = await ctx.client.get("/dashboard/status", headers=headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["available"] == 1
+    assert data["applied"] == 1
+    assert data["archived"] == 0
+    assert data["resume_status"] == "none"
+
+
+async def test_search_sets_last_search_at(ctx, monkeypatch):
+    from app.services import ai_service, job_search_service, role_service
+    from app.workers import tasks as worker_tasks
+    from tests.conftest import DEFAULT_PASSWORD, DEFAULT_EMAIL
+
+    email = DEFAULT_EMAIL
+    headers = await auth_headers(ctx, email=email)
+
+    import pdfplumber
+
+    monkeypatch.setattr(worker_tasks.convert_resume_pdf, "delay", lambda rid: None)
+    monkeypatch.setattr(
+        pdfplumber,
+        "open",
+        lambda path: type(
+            "F",
+            (),
+            {
+                "__enter__": lambda s: s,
+                "__exit__": lambda s, *a: False,
+                "pages": [type("P", (), {"extract_text": lambda s: "dev resume"})()],
+            },
+        )(),
+    )
+    monkeypatch.setattr(
+        ai_service,
+        "call_gemini",
+        lambda prompt: '{"roles": [{"title": "Backend Developer", "keywords": ["python", "backend"]}]}',
+    )
+    from app.services import job_sources
+
+    monkeypatch.setattr(job_sources, "fetch_remotive", lambda kw: [])
+    monkeypatch.setattr(job_sources, "fetch_remoteok", lambda kw: [])
+    monkeypatch.setattr(job_sources, "fetch_arbeitnow", lambda kw: [])
+    monkeypatch.setattr(job_sources, "scrape_weworkremotely", lambda kw: [])
+
+    resp = await ctx.client.post(
+        "/resumes/upload",
+        headers=headers,
+        files={"file": ("r.pdf", b"%PDF-1.4\nx\n", "application/pdf")},
+    )
+    resume_id = resp.json()["id"]
+    from app.services import resume_service
+
+    assert resume_service.run_conversion(resume_id) == "completed"
+    role_service.extract_roles_for_resume(resume_id)
+
+    async with ctx.session_factory() as session:
+        user = (
+            await session.execute(select(User).where(User.email == email))
+        ).scalar_one()
+        await job_search_service.search_jobs_for_user(session, user.id)
+
+    resp = await ctx.client.get("/dashboard/status", headers=headers)
+    data = resp.json()
+    assert data["last_search_at"] is not None
+    assert data["last_extraction_at"] is not None
+    assert data["roles_count"] == 1
+
+
 async def test_dashboard_summary_isolated_per_user(ctx):
     headers_a = await auth_headers(ctx, email="a@dash.com")
     headers_b = await auth_headers(ctx, email="b@dash.com")

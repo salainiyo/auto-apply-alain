@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy import delete
@@ -36,6 +37,7 @@ def extract_roles_for_resume(resume_id: str) -> list[dict] | None:
                         keywords=", ".join(item["keywords"]),
                     )
                 )
+            user.last_extraction_at = datetime.now(timezone.utc)
             session.commit()
             logger.info(
                 "roles_saved resume_id=%s count=%s", resume_id, len(roles)

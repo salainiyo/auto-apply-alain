@@ -96,58 +96,66 @@ async def search_jobs_for_user(db: AsyncSession, user_id) -> list[JobMatch]:
     if not user:
         return []
 
-    resume = await get_current_resume(db, user_id)
-    if not resume:
-        return []
+    try:
+        resume = await get_current_resume(db, user_id)
+        if not resume:
+            return []
 
-    roles = await get_roles_for_resume(db, resume.id)
-    if not roles:
-        return []
+        roles = await get_roles_for_resume(db, resume.id)
+        if not roles:
+            return []
 
-    known = await existing_fingerprints(db, user_id)
+        known = await existing_fingerprints(db, user_id)
 
-    new_matches: list[JobMatch] = []
-    seen_this_run: set[str] = set()
+        new_matches: list[JobMatch] = []
+        seen_this_run: set[str] = set()
 
-    for role in roles:
-        for listing in collect_listings_for_role(role):
-            if is_expired(listing):
-                continue
+        for role in roles:
+            for listing in collect_listings_for_role(role):
+                if is_expired(listing):
+                    continue
 
-            locality = determine_locality(listing, user.country)
-            if locality is None:
-                continue
+                locality = determine_locality(listing, user.country)
+                if locality is None:
+                    continue
 
-            fingerprint = job_fingerprint(
-                listing["company"], listing["title"], listing["url"], listing["posted_at"]
-            )
-            if fingerprint in known or fingerprint in seen_this_run:
-                continue
-
-            seen_this_run.add(fingerprint)
-            new_matches.append(
-                JobMatch(
-                    user_id=user_id,
-                    role_id=role.id,
-                    title=listing["title"][:255],
-                    company=listing["company"][:255],
-                    location=listing["location"],
-                    url=listing["url"][:512],
-                    source=listing["source"],
-                    job_type=listing["job_type"],
-                    is_remote=listing["is_remote"],
-                    locality=locality,
-                    posted_at=listing["posted_at"],
-                    fingerprint=fingerprint,
-                    status="available",
+                fingerprint = job_fingerprint(
+                    listing["company"], listing["title"], listing["url"], listing["posted_at"]
                 )
-            )
+                if fingerprint in known or fingerprint in seen_this_run:
+                    continue
 
-    for match in new_matches:
-        db.add(match)
-    if new_matches:
-        await db.commit()
-        logger.info(
-            "job_matches_found user_id=%s count=%s", user_id, len(new_matches)
-        )
-    return new_matches
+                seen_this_run.add(fingerprint)
+                new_matches.append(
+                    JobMatch(
+                        user_id=user_id,
+                        role_id=role.id,
+                        title=listing["title"][:255],
+                        company=listing["company"][:255],
+                        location=listing["location"],
+                        url=listing["url"][:512],
+                        source=listing["source"],
+                        job_type=listing["job_type"],
+                        is_remote=listing["is_remote"],
+                        locality=locality,
+                        posted_at=listing["posted_at"],
+                        fingerprint=fingerprint,
+                        status="available",
+                    )
+                )
+
+        for match in new_matches:
+            db.add(match)
+        if new_matches:
+            await db.commit()
+            logger.info(
+                "job_matches_found user_id=%s count=%s", user_id, len(new_matches)
+            )
+        return new_matches
+    finally:
+        # always record that a search ran, even when nothing matched
+        try:
+            user.last_search_at = datetime.now(timezone.utc)
+            await db.commit()
+        except Exception as exc:
+            logger.warning("search_timestamp_save_failed error=%s", exc)

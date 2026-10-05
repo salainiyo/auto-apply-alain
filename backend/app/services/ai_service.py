@@ -5,9 +5,7 @@ import httpx
 from app.core.config import settings
 from app.core.logging import logger
 
-GEMINI_API_URL = (
-    "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-)
+GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
 EXTRACTION_PROMPT = """You are an expert career advisor.
 Given the resume text below and the candidate's residence country, extract the concrete job roles this candidate can realistically apply to.
@@ -25,10 +23,85 @@ Resume:
 Residence country: {country}
 """
 
+_model_cache: dict = {}
+
+
+def _http_get(url: str, params: dict | None = None) -> httpx.Response:
+    with httpx.Client(timeout=30) as client:
+        return client.get(url, params=params, headers={"User-Agent": "auto-apply-alain/0.1"})
+
+
+def _http_post(url: str, body: dict, params: dict | None = None) -> httpx.Response:
+    with httpx.Client(timeout=60) as client:
+        return client.post(url, json=body, params=params)
+
+
+def _fetch_model_names() -> list[str]:
+    """Gemini model names supporting generateContent, without the 'models/' prefix."""
+    try:
+        resp = _http_get(f"{GEMINI_BASE_URL}/models", params={"pageSize": 100, "key": settings.gemini_api_key})
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as exc:
+        logger.warning("gemini_model_list_failed error=%s", exc)
+        return []
+
+    names = []
+    for model in data.get("models", []) or []:
+        name = (model.get("name") or "").removeprefix("models/")
+        if "gemini" in name and "generateContent" in (model.get("supportedGenerationMethods") or []):
+            names.append(name)
+    return names
+
+
+def _score_model(name: str) -> int:
+    """Higher is better: stable over preview, flash over pro over lite."""
+    score = 0
+    if "preview" not in name and "exp" not in name:
+        score += 100
+    if "flash" in name:
+        score += 10
+    elif "pro" in name:
+        score += 5
+    if "lite" in name:
+        score -= 1
+    return score
+
+
+def _pick_model(preferred: str, exclude: set[str] | None = None) -> str:
+    exclude = exclude or set()
+    all_names = _fetch_model_names()
+    names = [n for n in all_names if n not in exclude]
+    if not names:
+        return preferred  # nothing known -> try the configured one anyway
+    if preferred in names:
+        return preferred
+    best = max(names, key=_score_model)
+    logger.info("gemini_model_fallback configured=%s fallback=%s", preferred, best)
+    return best
+
+
+def get_model(exclude: set[str] | None = None) -> str:
+    if exclude:
+        return _pick_model(settings.gemini_model, exclude=exclude)
+    cached = _model_cache.get("model")
+    if cached:
+        return cached
+    model = _pick_model(settings.gemini_model)
+    _model_cache["model"] = model
+    return model
+
+
+def invalidate_model_cache() -> None:
+    _model_cache.pop("model", None)
+
 
 def call_gemini(prompt: str) -> str:
-    """Call the Gemini API and return the raw text response."""
-    url = GEMINI_API_URL.format(model=settings.gemini_model)
+    """Call the Gemini API and return the raw text response.
+
+    Falls back to any available model when the configured one is not
+    available (403/404), then caches the working choice.
+    """
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
@@ -36,11 +109,32 @@ def call_gemini(prompt: str) -> str:
             "temperature": 0.2,
         },
     }
-    with httpx.Client(timeout=60) as client:
-        resp = client.post(url, json=body, params={"key": settings.gemini_api_key})
-    resp.raise_for_status()
-    data = resp.json()
-    return data["candidates"][0]["content"]["parts"][0]["text"]
+    last_error: Exception | None = None
+    exclude: set[str] = set()
+    for attempt in range(2):
+        model = get_model(exclude=exclude or None)
+        try:
+            resp = _http_post(
+                f"{GEMINI_BASE_URL}/models/{model}:generateContent",
+                body,
+                params={"key": settings.gemini_api_key},
+            )
+            if resp.status_code in (403, 404) and attempt == 0:
+                logger.warning("gemini_model_unavailable model=%s status=%s", model, resp.status_code)
+                exclude.add(model)
+                invalidate_model_cache()
+                continue
+            resp.raise_for_status()
+            data = resp.json()
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        except httpx.HTTPStatusError as exc:
+            last_error = exc
+            break
+        except Exception as exc:
+            last_error = exc
+            break
+    assert last_error is not None
+    raise last_error
 
 
 def parse_roles(raw: str) -> list[dict]:

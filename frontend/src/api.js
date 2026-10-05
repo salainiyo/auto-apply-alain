@@ -4,6 +4,20 @@ export const getToken = () => localStorage.getItem(TOKEN_KEY) || ''
 export const setToken = (t) => localStorage.setItem(TOKEN_KEY, t)
 export const clearToken = () => localStorage.removeItem(TOKEN_KEY)
 
+export async function waitForStatus(checkFn, { intervalMs = 2500, timeoutMs = 180000 } = {}) {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    await new Promise((r) => setTimeout(r, intervalMs))
+    try {
+      const st = await api.getStatus()
+      if (checkFn(st)) return st
+    } catch {
+      // transient poll failure — keep waiting
+    }
+  }
+  return null
+}
+
 const jsonHeaders = () => ({
   'Content-Type': 'application/json',
   Authorization: `Bearer ${getToken()}`,
@@ -50,4 +64,5 @@ export const api = {
     fetch(`/jobs/matches/${id}/apply`, { method: 'POST', headers: jsonHeaders() }).then(handle),
 
   getSummary: () => fetch('/dashboard/summary', { headers: jsonHeaders() }).then(handle),
+  getStatus: () => fetch('/dashboard/status', { headers: jsonHeaders() }).then(handle),
 }

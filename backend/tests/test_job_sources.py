@@ -53,6 +53,25 @@ def test_fetch_remoteok_skips_legal_notice_and_parses_jobs(monkeypatch):
     assert jobs[0]["posted_at"] is not None
 
 
+def test_fetch_remoteok_absolute_url_not_prefixed(monkeypatch):
+    """RemoteOK sometimes returns absolute URLs — the domain must not be duplicated."""
+    payload = [
+        {
+            "position": "Automation Specialist",
+            "company": "Dreem Health",
+            "url": "https://remoteOK.com/remote-jobs/remote-digital-workplace-automation-specialist-dreem-health-1136948",
+            "date": "Tue, 01 Oct 2026 10:00:00 GMT",
+        }
+    ]
+    _mock_httpx(monkeypatch, payload=payload)
+
+    jobs = job_sources.fetch_remoteok("automation")
+    assert len(jobs) == 1
+    assert jobs[0]["url"] == (
+        "https://remoteOK.com/remote-jobs/remote-digital-workplace-automation-specialist-dreem-health-1136948"
+    )
+
+
 def test_fetch_remoteok_failure_returns_empty(monkeypatch):
     _mock_httpx(monkeypatch, raises=httpx.ConnectError("down"))
     assert job_sources.fetch_remoteok("python") == []
