@@ -144,3 +144,32 @@ Each step ships with its tests before moving on:
 - Gemini API key (Google AI Studio)
 - Gmail app password (SMTP emails)
 - `gh` CLI authenticated (repo creation)
+
+---
+
+## Step 7 — Professional Frontend Redesign `[AGREED]`
+
+- **Design system:** Tailwind CSS + PostCSS, Inter font, one accent color, rounded cards/soft shadows, shared `Button`/`Card`/`Badge`/`Stats`/`EmptyState` patterns
+- **Public landing page** (`/` when logged out): hero + CTAs, features grid, "how it works", footer
+- **Auth pages:** branded card, banner messages, loading/disabled states
+- **Dashboard:** stats row (Available/Applied/Archived/Roles + last search/extraction), status card, tabs with counts, job cards with source/locality/type badges, apply + auto-apply actions, empty states
+- **Responsive + accessible** single-column-on-mobile layout
+
+## Step 8 — Auto Apply: Backend Pipeline `[AGREED]`
+
+- Model: `ApplicationAttempt` (status: pending | running | applied | manual_required | failed, cover_letter, detail, timestamps)
+- Route: `POST /jobs/matches/{id}/apply-auto` → 202 → celery task `apply_to_job`; `GET /jobs/matches/{id}/application` reads state
+- Task flow: fetch posting page → detect mechanism → act:
+  - **mailto** → send tailored Gemini cover-letter email via existing Gmail SMTP, original resume PDF attached, user's email as Reply-To → `applied`
+  - **login-walled/none** → `manual_required` with direct link (job stays available)
+  - **plain web form** → placeholder path (Step 9 decides Playwright)
+- WS progress events reuse the Redis pub/sub channel (`job: "auto_apply"`)
+- Gemini produces the tailored cover letter from resume + job page text
+- Guard: already applied → 409; attempt per match deduplicated
+- Tests: mailto detection, cover letter generation (mocked Gemini), SMTP send success/failure (mocked), fallback path, 409 dedup, progress events, endpoint responses
+
+## Step 9 — Auto Apply: Form-Fill Path (Playwright) + Manual Fallback `[AGREED]`
+
+- If a posting has a non-login application form: Playwright (chromium) fills visible fields (name/email/phone/cover letter text) + submits → `applied`
+- Worker image installs Playwright Chromium; if unavailable/blocked → honest `manual_required` with link and copyable cover letter
+- Tests: detection + fill#submit mocked via a stub page, login-walled fallback, manual_required UI state; logging on every step
