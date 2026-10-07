@@ -110,3 +110,27 @@ class JobMatch(Base):
         onupdate=func.now(),
         nullable=False,
     )
+
+
+class ApplicationAttempt(Base):
+    __tablename__ = "application_attempts"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False
+    )
+    job_match_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("job_matches.id", ondelete="CASCADE"), unique=True, index=True, nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
+    cover_letter: Mapped[str | None] = mapped_column(Text, nullable=True)
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )

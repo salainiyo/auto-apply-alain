@@ -147,7 +147,7 @@ Each step ships with its tests before moving on:
 
 ---
 
-## Step 7 — Professional Frontend Redesign `[AGREED]`
+## Step 7 — Professional Frontend Redesign `[DONE]`
 
 - **Design system:** Tailwind CSS + PostCSS, Inter font, one accent color, rounded cards/soft shadows, shared `Button`/`Card`/`Badge`/`Stats`/`EmptyState` patterns
 - **Public landing page** (`/` when logged out): hero + CTAs, features grid, "how it works", footer
@@ -155,7 +155,7 @@ Each step ships with its tests before moving on:
 - **Dashboard:** stats row (Available/Applied/Archived/Roles + last search/extraction), status card, tabs with counts, job cards with source/locality/type badges, apply + auto-apply actions, empty states
 - **Responsive + accessible** single-column-on-mobile layout
 
-## Step 8 — Auto Apply: Backend Pipeline `[AGREED]`
+## Step 8 — Auto Apply: Backend Pipeline `[DONE]`
 
 - Model: `ApplicationAttempt` (status: pending | running | applied | manual_required | failed, cover_letter, detail, timestamps)
 - Route: `POST /jobs/matches/{id}/apply-auto` → 202 → celery task `apply_to_job`; `GET /jobs/matches/{id}/application` reads state

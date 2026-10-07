@@ -20,3 +20,15 @@ class JobMatchResponse(BaseModel):
     posted_at: datetime | None
     status: str
     created_at: datetime
+
+
+class ApplicationResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    job_match_id: UUID
+    status: str
+    cover_letter: str | None = None
+    detail: str | None = None
+    created_at: datetime
+    updated_at: datetime

@@ -1,3 +1,5 @@
+
+import re
 import json
 
 import httpx
@@ -135,6 +137,66 @@ def call_gemini(prompt: str) -> str:
             break
     assert last_error is not None
     raise last_error
+
+
+COVER_LETTER_PROMPT = """You are a professional career coach.
+Based on the candidate's resume and this job listing, write a concise, tailored cover letter of about 170-200 words.
+- Professional, warm, direct tone
+- Name 2-3 skills/requirements from the listing that match the resume
+- Reference the candidate's country only where relevant
+- Sign off with a polite close and the candidate's email
+Return ONLY the letter text. No subject line, no JSON, no headers.
+
+Candidate resume:
+{resume_text}
+
+Job title: {job_title}
+Candidate country: {candidate_country}
+Job info:
+{job_text}
+"""
+
+
+def call_gemini_text(prompt: str) -> str:
+    body = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.4},
+    }
+    last_error: Exception | None = None
+    exclude: set[str] = set()
+    for attempt in range(2):
+        model = get_model(exclude=exclude or None)
+        try:
+            resp = _http_post(
+                f"{GEMINI_BASE_URL}/models/{model}:generateContent",
+                body,
+                params={"key": settings.gemini_api_key},
+            )
+            if resp.status_code in (403, 404) and attempt == 0:
+                exclude.add(model)
+                invalidate_model_cache()
+                continue
+            resp.raise_for_status()
+            data = resp.json()
+            return data["candidates"][0]["content"]["parts"][0]["text"]
+        except httpx.HTTPStatusError as exc:
+            last_error = exc
+            break
+        except Exception as exc:
+            last_error = exc
+            break
+    assert last_error is not None
+    raise last_error
+
+
+def build_cover_letter(resume_text: str, job_title: str, job_text: str, candidate_country: str) -> str:
+    prompt = COVER_LETTER_PROMPT.format(
+        resume_text=resume_text[:12000],
+        job_title=job_title[:120],
+        job_text=re.sub(r"<[^>]+>", " ", job_text)[:4000],
+        candidate_country=candidate_country,
+    )
+    return call_gemini_text(prompt).strip().strip('"')
 
 
 def parse_roles(raw: str) -> list[dict]:

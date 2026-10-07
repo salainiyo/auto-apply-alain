@@ -157,3 +157,10 @@ def archive_expired_matches() -> None:
 
     if archived_ids:
         logger.info("matches_auto_archived count=%s", len(archived_ids))
+
+
+@celery_app.task(name="app.workers.tasks.apply_to_job")
+def apply_to_job(attempt_id: str) -> None:
+    from app.services.apply_service import run_application
+
+    run_application(attempt_id)

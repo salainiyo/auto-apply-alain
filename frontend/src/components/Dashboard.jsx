@@ -48,6 +48,12 @@ export default function Dashboard({ onLogout }) {
             loadSummary()
             loadPipeline()
             setRefreshKey((k) => k + 1)
+          } else if (event.status === 'manual_required') {
+            setBusy(null)
+            setDoneMsg(`⚠ ${label} needs your action${event.detail ? ` — ${event.detail}` : ''}`)
+            loadSummary()
+            loadPipeline()
+            setRefreshKey((k) => k + 1)
           } else if (event.status === 'failed') {
             setBusy(null)
             setDoneMsg(`✘ ${label} failed${event.detail ? `: ${event.detail}` : ''}`)
@@ -131,15 +137,37 @@ export default function Dashboard({ onLogout }) {
 
   const handleApplyAuto = async (matchId) => {
     setBusy('apply')
-    setDoneMsg('Application queued — the worker is writing a tailored letter…')
+    setDoneMsg('')
     try {
       await api.applyAuto(matchId)
-      // WS drives state from here; a short HTTP poll is the safety net
-      await waitForStatus(() => false, { timeoutMs: 60 * 1000 })
     } catch (err) {
-      setDoneMsg(`Auto apply failed: ${err.message}`)
+      setBusy(null)
+      setDoneMsg(`✘ Auto apply failed: ${err.message}`)
+      return
+    }
+    // WS drives the banner; this poll is the safety net until the attempt is terminal
+    const deadline = Date.now() + 90 * 1000
+    let attempt = null
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 2500))
+      try {
+        attempt = await api.getApplication(matchId)
+        if (['applied', 'manual_required', 'failed'].includes(attempt.status)) break
+        attempt = null
+      } catch {
+        attempt = null
+      }
     }
     setBusy(null)
+    if (!attempt) {
+      setDoneMsg('Auto apply still running — refresh to see its status')
+    } else if (attempt.status === 'applied') {
+      setDoneMsg(`✔ Application sent${attempt.detail ? ` — ${attempt.detail}` : ''}`)
+    } else if (attempt.status === 'manual_required') {
+      setDoneMsg(`⚠ Needs your action — ${attempt.detail || 'please apply at the job link'}`)
+    } else {
+      setDoneMsg(`✘ Auto apply failed${attempt.detail ? `: ${attempt.detail}` : ''}`)
+    }
     refreshAll()
   }
 
@@ -187,7 +215,11 @@ export default function Dashboard({ onLogout }) {
               Resume: <span className="font-medium">{pipeline.resume_status}</span> · Last extraction: {fmt(pipeline.last_extraction_at)} · Last search: {fmt(pipeline.last_search_at)}
             </p>
             {busyLabel && <p className="mt-2 text-sm text-brand-600">● Running in background: {busyLabel}…</p>}
-            {doneMsg && <p className="mt-2 text-sm text-emerald-600">✔ {doneMsg}</p>}
+            {doneMsg && (
+              <p className={`mt-2 text-sm ${doneMsg.startsWith('✘') ? 'text-red-600' : doneMsg.startsWith('⚠') ? 'text-amber-600' : 'text-emerald-600'}`}>
+                {doneMsg}
+              </p>
+            )}
           </div>
         )}
 

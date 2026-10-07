@@ -5,7 +5,7 @@ function localityBadge(locality) {
   return locality === 'remote' ? <span className="badge-remote">remote</span> : <span className="badge-local">local</span>
 }
 
-function JobCard({ job, onApply, onApplyAuto, showApply }) {
+function JobCard({ job, onApply, onApplyAuto, showApply, autoPending }) {
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
@@ -25,7 +25,9 @@ function JobCard({ job, onApply, onApplyAuto, showApply }) {
         {showApply && (
           <>
             <button onClick={() => onApply(job.id)} className="btn-secondary">Mark applied</button>
-            <button onClick={() => onApplyAuto(job.id)} className="btn-primary">Auto apply</button>
+            <button onClick={() => onApplyAuto(job.id)} disabled={autoPending} className="btn-primary">
+              {autoPending ? 'Applying…' : 'Auto apply'}
+            </button>
           </>
         )}
         {job.status === 'applied' && <span className="badge bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">applied</span>}
@@ -39,6 +41,16 @@ export default function JobList({ status, refreshKey, onApplied, onApplyAuto }) 
   const [jobs, setJobs] = useState(null)
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState(null)
+  const [autoId, setAutoId] = useState(null)
+
+  const applyAuto = async (id) => {
+    setAutoId(id)
+    try {
+      await onApplyAuto?.(id)
+    } finally {
+      setAutoId(null)
+    }
+  }
 
   const load = () => api.getMatches(status).then(setJobs).catch((err) => setError(err.message))
 
@@ -68,7 +80,7 @@ export default function JobList({ status, refreshKey, onApplied, onApplyAuto }) 
         </p>
       )}
       {jobs && jobs.map((job) => (
-        <JobCard key={job.id} job={job} onApply={apply} onApplyAuto={onApplyAuto} showApply={status === 'available'} />
+        <JobCard key={job.id} job={job} onApply={apply} onApplyAuto={applyAuto} autoPending={autoId === job.id} showApply={status === 'available'} />
       ))}
     </div>
   )
