@@ -14,7 +14,7 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
-LOGIN_WALLED_HOSTS = ("linkedin", "indeed", "upwork", "glassdoor", "ziprecruiter", "monster", "adzuna")
+LOGIN_WALLED_HOSTS = ("linkedin", "indeed", "upwork", "glassdoor", "ziprecruiter", "monster", "adzuna", "wellfound", "otto", "hired")
 
 # stored on job_matches.apply_mechanism: unknown | auto | form | login_required | none
 STORED_MECHANISM = {"mailto": "auto", "form": "form", "login_required": "login_required", "none": "none"}

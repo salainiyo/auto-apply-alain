@@ -103,3 +103,12 @@ async def test_detect_task_publishes_progress(ctx, monkeypatch):
 
     assert ("mechanism_check", "started", "") in events
     assert ("mechanism_check", "completed", "5 job pages checked") in events
+
+
+def test_wellfound_is_login_walled():
+    import re
+
+    page = '<html><form id="apply"><input name="email"/></form></html>'
+    assert apply_service.detect_apply_mechanism(page, url="https://wellfound.com/jobs/3068778")["type"] == "login_required"
+    # a mailto wins over forms when the page exposes one
+    assert apply_service.detect_apply_mechanism(PAGE_MAILTO, url="https://example.com/j")["type"] == "mailto"

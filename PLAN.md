@@ -188,3 +188,9 @@ Each step ships with its tests before moving on:
 - **Per-job status**: `GET /jobs/matches` returns `apply_status` (from the attempt) — cards show `applying…` (button disabled), `auto-apply failed`, `needs manual apply`; banner still reports each result
 - **Retry**: a `failed` attempt is reset and re-dispatched on the next click (409 kept for pending/running/applied/manual_required)
 - **Stale jobs**: `JOB_EXPIRY_DAYS` 60 → 30; the daily archive beat now also archives Available matches whose *posting date* is >30 days old; purged existing backlog
+
+## Step 8d — Letter Drafting for Manual Jobs + Data Repair `[DONE]`
+
+- Form jobs get a **Draft cover letter** button (runs the pipeline, generates the Gemini letter, no email sent); when a letter exists the card shows **Copy cover letter** (clipboard + fallback prompt)
+- Wellfound/Otto/Hired classified as login-walled (wellfound was wrongly detected as a form → dead-end message)
+- Repaired 37 corrupted RemoteOK URLs (doubled scheme from an old bug) — all matches now classified, zero unknown mechanism

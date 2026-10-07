@@ -19,6 +19,30 @@ function attemptBadge(status) {
 }
 
 function JobCard({ job, onApply, onApplyAuto, showApply, autoPending }) {
+  const [letterMsg, setLetterMsg] = useState('')
+  const inFlight = autoPending || job.apply_status === 'pending' || job.apply_status === 'running'
+
+  const copyLetter = async () => {
+    try {
+      const app = await api.getApplication(job.id)
+      if (!app.cover_letter) {
+        setLetterMsg('no letter yet')
+        return
+      }
+      try {
+        await navigator.clipboard.writeText(app.cover_letter)
+        setLetterMsg('copied ✓')
+      } catch {
+        window.prompt('Copy your cover letter:', app.cover_letter)
+        setLetterMsg('copied ✓')
+      }
+      setTimeout(() => setLetterMsg(''), 3000)
+    } catch {
+      setLetterMsg('could not load letter')
+      setTimeout(() => setLetterMsg(''), 3000)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
@@ -43,10 +67,24 @@ function JobCard({ job, onApply, onApplyAuto, showApply, autoPending }) {
             {job.apply_mechanism === 'auto' && (
               <button
                 onClick={() => onApplyAuto(job.id)}
-                disabled={autoPending || job.apply_status === 'pending' || job.apply_status === 'running'}
+                disabled={inFlight}
                 className="btn-primary"
               >
-                {autoPending || job.apply_status === 'pending' || job.apply_status === 'running' ? 'Applying…' : 'Auto apply'}
+                {inFlight ? 'Applying…' : 'Auto apply'}
+              </button>
+            )}
+            {job.apply_mechanism === 'form' && job.apply_status !== 'manual_required' && (
+              <button
+                onClick={() => onApplyAuto(job.id)}
+                disabled={inFlight}
+                className="btn-primary"
+              >
+                {inFlight ? 'Drafting…' : 'Draft cover letter'}
+              </button>
+            )}
+            {job.apply_status === 'manual_required' && (
+              <button onClick={copyLetter} className="btn-primary">
+                {letterMsg === 'copied ✓' ? 'Copied ✓' : letterMsg === 'no letter yet' ? 'No letter' : letterMsg ? letterMsg : 'Copy cover letter'}
               </button>
             )}
           </>
