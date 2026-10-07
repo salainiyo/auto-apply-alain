@@ -9,8 +9,8 @@ const TABS = ['available', 'applied', 'archived']
 
 const fmt = (ts) => (ts ? new Date(ts).toLocaleString() : 'never')
 
-const JOB_BUSY = { resume_conversion: 'upload', role_extraction: 'extract', job_search: 'search', auto_apply: 'apply' }
-const JOB_LABEL = { resume_conversion: 'Resume conversion', role_extraction: 'Role extraction', job_search: 'Job search', auto_apply: 'Auto apply', mechanism_check: 'Auto-apply check' }
+const JOB_BUSY = { resume_conversion: 'upload', role_extraction: 'extract', job_search: 'search' }
+const JOB_LABEL = { resume_conversion: 'Resume conversion', role_extraction: 'Role extraction', job_search: 'Job search' }
 
 export default function Dashboard({ onLogout }) {
   const [me, setMe] = useState(null)
@@ -45,12 +45,6 @@ export default function Dashboard({ onLogout }) {
           } else if (event.status === 'completed') {
             setBusy(null)
             setDoneMsg(`✔ ${label} finished${event.detail ? ` — ${event.detail}` : ''}`)
-            loadSummary()
-            loadPipeline()
-            setRefreshKey((k) => k + 1)
-          } else if (event.status === 'manual_required') {
-            setBusy(null)
-            setDoneMsg(`⚠ ${label} needs your action${event.detail ? ` — ${event.detail}` : ''}`)
             loadSummary()
             loadPipeline()
             setRefreshKey((k) => k + 1)
@@ -135,42 +129,6 @@ export default function Dashboard({ onLogout }) {
     refreshAll()
   }
 
-  const handleApplyAuto = async (matchId) => {
-    setBusy('apply')
-    setDoneMsg('')
-    try {
-      await api.applyAuto(matchId)
-    } catch (err) {
-      setBusy(null)
-      setDoneMsg(`✘ Auto apply failed: ${err.message}`)
-      return
-    }
-    // WS drives the banner; this poll is the safety net until the attempt is terminal
-    const deadline = Date.now() + 90 * 1000
-    let attempt = null
-    while (Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 2500))
-      try {
-        attempt = await api.getApplication(matchId)
-        if (['applied', 'manual_required', 'failed'].includes(attempt.status)) break
-        attempt = null
-      } catch {
-        attempt = null
-      }
-    }
-    setBusy(null)
-    if (!attempt) {
-      setDoneMsg('Auto apply still running — refresh to see its status')
-    } else if (attempt.status === 'applied') {
-      setDoneMsg(`✔ Application sent${attempt.detail ? ` — ${attempt.detail}` : ''}`)
-    } else if (attempt.status === 'manual_required') {
-      setDoneMsg(`⚠ Needs your action — ${attempt.detail || 'please apply at the job link'}`)
-    } else {
-      setDoneMsg(`✘ Auto apply failed${attempt.detail ? `: ${attempt.detail}` : ''}`)
-    }
-    refreshAll()
-  }
-
   const logout = async () => {
     await api.logout().catch(() => {})
     onLogout()
@@ -179,7 +137,6 @@ export default function Dashboard({ onLogout }) {
   const busyLabel = busy === 'upload' ? 'converting your resume'
     : busy === 'extract' ? 'extracting roles'
     : busy === 'search' ? 'searching for jobs'
-    : busy === 'apply' ? 'auto-applying'
     : null
 
   return (
@@ -247,7 +204,7 @@ export default function Dashboard({ onLogout }) {
             ))}
           </div>
 
-          <JobList status={tab} refreshKey={refreshKey} onApplied={refreshAll} onApplyAuto={handleApplyAuto} />
+          <JobList status={tab} refreshKey={refreshKey} onApplied={refreshAll} />
         </div>
       </main>
     </div>

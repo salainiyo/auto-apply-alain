@@ -6,9 +6,9 @@ from uuid import UUID
 from app.api.deps import get_current_user
 from app.core.logging import logger
 from app.db.database import get_db
-from app.db.models import ApplicationAttempt, JobMatch, Resume, User
+from app.db.models import JobMatch, Resume, User
 from app.middleware.rate_limit import rate_limit
-from app.schemas.job import ApplicationResponse, JobMatchResponse
+from app.schemas.job import JobMatchResponse
 from app.services import job_search_service
 from app.workers import tasks as worker_tasks
 
@@ -62,20 +62,7 @@ async def list_matches(
         .where(JobMatch.user_id == current_user.id, JobMatch.status == status_filter)
         .order_by(locality_rank, JobMatch.created_at.desc())
     )
-    matches = result.scalars().all()
-
-    if matches:
-        attempt_rows = await db.execute(
-            select(ApplicationAttempt.job_match_id, ApplicationAttempt.status).where(
-                ApplicationAttempt.job_match_id.in_([m.id for m in matches])
-            )
-        )
-        attempt_map = dict(attempt_rows.all())
-    else:
-        attempt_map = {}
-    for match in matches:
-        match.apply_status = attempt_map.get(match.id)
-    return matches
+    return result.scalars().all()
 
 
 @router.post("/matches/{match_id}/apply", response_model=JobMatchResponse)
@@ -95,68 +82,3 @@ async def apply_to_match(
     await db.refresh(match)
     logger.info("job_applied user_id=%s match_id=%s", current_user.id, match.id)
     return match
-
-
-@router.post(
-    "/matches/{match_id}/apply-auto",
-    status_code=status.HTTP_202_ACCEPTED,
-    dependencies=[Depends(rate_limit(limit=5, window_seconds=60))],
-)
-async def apply_auto(
-    match_id: UUID,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    match = await db.get(JobMatch, match_id)
-    if not match or match.user_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job match not found")
-
-    if match.status == "applied":
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already applied to this match")
-
-    existing = await db.execute(
-        select(ApplicationAttempt).where(ApplicationAttempt.job_match_id == match_id)
-    )
-    existing_attempt = existing.scalars().first()
-    if existing_attempt is not None:
-        if existing_attempt.status != "failed":
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Application attempt already exists with status '{existing_attempt.status}'",
-            )
-        # a failed attempt can be retried: reset the same row instead of duplicating
-        existing_attempt.status = "pending"
-        existing_attempt.cover_letter = None
-        existing_attempt.detail = None
-        await db.commit()
-        await db.refresh(existing_attempt)
-        attempt = existing_attempt
-        logger.info("apply_auto_retry user_id=%s match_id=%s attempt_id=%s", current_user.id, match_id, attempt.id)
-    else:
-        attempt = ApplicationAttempt(user_id=current_user.id, job_match_id=match_id, status="pending")
-        db.add(attempt)
-        await db.commit()
-        await db.refresh(attempt)
-        logger.info("apply_auto_dispatched user_id=%s match_id=%s attempt_id=%s", current_user.id, match_id, attempt.id)
-
-    worker_tasks.apply_to_job.delay(str(attempt.id))
-    return {"message": "Auto-apply queued", "attempt_id": str(attempt.id)}
-
-
-@router.get("/matches/{match_id}/application", response_model=ApplicationResponse)
-async def get_application(
-    match_id: UUID,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    match = await db.get(JobMatch, match_id)
-    if not match or match.user_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job match not found")
-
-    result = await db.execute(
-        select(ApplicationAttempt).where(ApplicationAttempt.job_match_id == match_id)
-    )
-    attempt = result.scalars().first()
-    if not attempt:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No application attempt yet")
-    return attempt

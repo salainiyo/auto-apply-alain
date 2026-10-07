@@ -194,3 +194,10 @@ Each step ships with its tests before moving on:
 - Form jobs get a **Draft cover letter** button (runs the pipeline, generates the Gemini letter, no email sent); when a letter exists the card shows **Copy cover letter** (clipboard + fallback prompt)
 - Wellfound/Otto/Hired classified as login-walled (wellfound was wrongly detected as a form → dead-end message)
 - Repaired 37 corrupted RemoteOK URLs (doubled scheme from an old bug) — all matches now classified, zero unknown mechanism
+
+## Step 8e — Auto-Apply Removed; Freshness Is the Focus `[DONE]`
+
+- **Whole auto-application feature removed** at user request: `apply-auto`/`application` endpoints, `ApplicationAttempt` table, `apply_service`, cover-letter Gemini path, application emails, `apply_to_job` + `detect_apply_mechanisms` tasks, mechanism/attempt columns, and all related UI (auto-apply/draft/copy buttons, mechanism/attempt badges, progress labels)
+- **Kept:** Mark applied (manual tracking), View links, job search, dashboard
+- **Non-expired focus:** 30-day posting expiry at ingestion, stale-date archiving moved to **hourly** (was daily); Available verified: 0 jobs older than 30 days
+- Tests after removal: 115 passing
