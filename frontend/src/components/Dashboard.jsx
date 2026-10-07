@@ -10,7 +10,7 @@ const TABS = ['available', 'applied', 'archived']
 const fmt = (ts) => (ts ? new Date(ts).toLocaleString() : 'never')
 
 const JOB_BUSY = { resume_conversion: 'upload', role_extraction: 'extract', job_search: 'search', auto_apply: 'apply' }
-const JOB_LABEL = { resume_conversion: 'Resume conversion', role_extraction: 'Role extraction', job_search: 'Job search', auto_apply: 'Auto apply' }
+const JOB_LABEL = { resume_conversion: 'Resume conversion', role_extraction: 'Role extraction', job_search: 'Job search', auto_apply: 'Auto apply', mechanism_check: 'Auto-apply check' }
 
 export default function Dashboard({ onLogout }) {
   const [me, setMe] = useState(null)

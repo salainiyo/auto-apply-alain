@@ -16,6 +16,9 @@ HEADERS = {
 
 LOGIN_WALLED_HOSTS = ("linkedin", "indeed", "upwork", "glassdoor", "ziprecruiter", "monster", "adzuna")
 
+# stored on job_matches.apply_mechanism: unknown | auto | form | login_required | none
+STORED_MECHANISM = {"mailto": "auto", "form": "form", "login_required": "login_required", "none": "none"}
+
 
 def _fetch_page(url: str) -> str:
     try:
@@ -86,6 +89,7 @@ def run_application(attempt_id: str) -> dict:
         try:
             page = _fetch_page(match.url)
             mechanism = detect_apply_mechanism(page, url=match.url)
+            match.apply_mechanism = STORED_MECHANISM.get(mechanism["type"], "unknown")
             logger.info("apply_mechanism attempt=%s mechanism=%s", attempt.id, mechanism.get("type"))
 
             if mechanism["type"] in ("login_required", "none"):
@@ -161,3 +165,57 @@ def _send_application(match: JobMatch, user: User, cover_letter: str, to_email: 
     except Exception as exc:
         logger.warning("application_email_failed attempt_user=%s error=%s", user.id, exc)
         return False
+
+
+def detect_mechanisms_for_user(user_id, limit: int = 120) -> int:
+    """Fetch each available match with an unknown mechanism and store how
+    (or whether) it can be auto-applied. Returns the number checked."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from sqlalchemy import select
+
+    with database_sync.SyncSessionLocal() as session:
+        result = session.execute(
+            select(JobMatch)
+            .where(
+                JobMatch.user_id == user_id,
+                JobMatch.status == "available",
+                JobMatch.apply_mechanism == "unknown",
+            )
+            .order_by(JobMatch.created_at.desc())
+            .limit(limit)
+        )
+        matches = result.scalars().all()
+
+    if not matches:
+        return 0
+
+    def check(match: JobMatch) -> str | None:
+        page = _fetch_page(match.url)
+        if not page:
+            return None  # transient failure — leave unknown for a later pass
+        try:
+            return STORED_MECHANISM.get(detect_apply_mechanism(page, url=match.url)["type"])
+        except Exception:
+            return None
+
+    found: dict = {}
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        for match, mech in zip(matches, pool.map(check, matches)):
+            if mech:
+                found[match.id] = mech
+
+    with database_sync.SyncSessionLocal() as session:
+        for match_id, mech in found.items():
+            row = session.get(JobMatch, match_id)
+            if row:
+                row.apply_mechanism = mech
+        session.commit()
+
+    logger.info(
+        "mechanisms_detected user_id=%s checked=%s detected=%s",
+        user_id,
+        len(matches),
+        len(found),
+    )
+    return len(found)

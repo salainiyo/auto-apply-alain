@@ -67,7 +67,7 @@ export default function Landing({ onGetStarted, onLogin }) {
       </section>
 
       <footer className="border-t border-gray-100 py-8 text-center text-sm text-gray-400">
-        auto-apply · built with FastAPI, Celery, Gemini and React
+        auto-apply
       </footer>
     </div>
   )

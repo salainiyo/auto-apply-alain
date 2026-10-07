@@ -5,6 +5,12 @@ function localityBadge(locality) {
   return locality === 'remote' ? <span className="badge-remote">remote</span> : <span className="badge-local">local</span>
 }
 
+function mechanismBadge(mechanism) {
+  if (mechanism === 'auto') return <span className="badge bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">auto-apply</span>
+  if (!mechanism || mechanism === 'unknown') return null
+  return <span className="badge bg-gray-100 text-gray-600">manual only</span>
+}
+
 function JobCard({ job, onApply, onApplyAuto, showApply, autoPending }) {
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -15,6 +21,7 @@ function JobCard({ job, onApply, onApplyAuto, showApply, autoPending }) {
         </p>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           {localityBadge(job.locality)}
+          {mechanismBadge(job.apply_mechanism)}
           {job.job_type && <span className="badge bg-gray-100 text-gray-600">{job.job_type}</span>}
           <span className="badge-source">{job.source}</span>
           {job.posted_at && <span className="text-xs text-gray-400">{new Date(job.posted_at).toLocaleDateString()}</span>}

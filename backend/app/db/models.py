@@ -101,6 +101,7 @@ class JobMatch(Base):
     posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     fingerprint: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="available", nullable=False)
+    apply_mechanism: Mapped[str] = mapped_column(String(20), default="unknown", nullable=False)  # unknown | auto | form | login_required | none
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

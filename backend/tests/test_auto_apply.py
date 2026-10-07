@@ -100,6 +100,7 @@ async def test_apply_auto_mailto_sends_email_and_marks_applied(ctx, monkeypatch)
         assert attempt.cover_letter == "Tailored letter"
         assert "careers@zycto.com" in attempt.detail
         assert match_row.status == "applied"
+        assert match_row.apply_mechanism == "auto"
 
     assert sent["to"] == "careers@zycto.com"
     assert "Application — Backend Engineer" == sent["subject"]

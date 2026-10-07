@@ -81,6 +81,26 @@ def search_jobs_for_user(user_id: str) -> None:
         progress.publish_progress(user_id, "job_search", "failed", str(exc))
         raise
 
+    # background pass: tell the user which jobs support auto-apply
+    try:
+        detect_apply_mechanisms.delay(user_id)
+    except Exception as exc:
+        logger.warning("mechanism_check_dispatch_failed user_id=%s error=%s", user_id, exc)
+
+
+@celery_app.task(name="app.workers.tasks.detect_apply_mechanisms")
+def detect_apply_mechanisms(user_id: str) -> None:
+    """Check each new match's posting page for auto-apply support (mailto vs manual)."""
+    from app.services.apply_service import detect_mechanisms_for_user
+
+    progress.publish_progress(user_id, "mechanism_check", "started")
+    try:
+        checked = detect_mechanisms_for_user(user_id)
+        progress.publish_progress(user_id, "mechanism_check", "completed", f"{checked} job pages checked")
+    except Exception as exc:
+        progress.publish_progress(user_id, "mechanism_check", "failed", str(exc))
+        raise
+
 
 async def _search(user_id: str):
     from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine

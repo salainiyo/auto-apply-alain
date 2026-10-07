@@ -173,3 +173,11 @@ Each step ships with its tests before moving on:
 - If a posting has a non-login application form: Playwright (chromium) fills visible fields (name/email/phone/cover letter text) + submits → `applied`
 - Worker image installs Playwright Chromium; if unavailable/blocked → honest `manual_required` with link and copyable cover letter
 - Tests: detection + fill#submit mocked via a stub page, login-walled fallback, manual_required UI state; logging on every step
+
+## Step 8b — Upfront Auto-Apply Detection `[DONE]`
+
+- New `job_matches.apply_mechanism` column (`unknown | auto | form | login_required | none`), returned on `GET /jobs/matches`
+- Celery task `detect_apply_mechanisms` auto-runs after every job search (manual + beat): fetches each new posting page (4 threads) and stores how it can (or can't) be auto-applied
+- Learn-on-click: an auto-apply run refreshes the stored mechanism
+- UI: green **auto-apply** badge vs gray **manual only** badge on every job card; unreachable/dead postings stay unbadged (never claim what isn't checked)
+- WS progress job `mechanism_check` streams the check; existing matches backfilled in bulk

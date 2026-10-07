@@ -19,6 +19,7 @@ class JobMatchResponse(BaseModel):
     locality: str
     posted_at: datetime | None
     status: str
+    apply_mechanism: str
     created_at: datetime
 
 
