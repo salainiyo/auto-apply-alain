@@ -20,6 +20,7 @@ class JobMatchResponse(BaseModel):
     posted_at: datetime | None
     status: str
     apply_mechanism: str
+    apply_status: str | None = None
     created_at: datetime
 
 

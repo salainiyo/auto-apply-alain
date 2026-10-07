@@ -9,7 +9,7 @@ from app.core.logging import logger
 from app.db.models import JobMatch, Resume, Role, User
 from app.services import job_sources
 
-JOB_EXPIRY_DAYS = 60  # postings older than this are considered expired
+JOB_EXPIRY_DAYS = 30  # postings older than this are considered expired
 
 
 def job_fingerprint(company: str, title: str, url: str, posted_at: datetime | None) -> str:

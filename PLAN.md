@@ -181,3 +181,10 @@ Each step ships with its tests before moving on:
 - Learn-on-click: an auto-apply run refreshes the stored mechanism
 - UI: green **auto-apply** badge vs gray **manual only** badge on every job card; unreachable/dead postings stay unbadged (never claim what isn't checked)
 - WS progress job `mechanism_check` streams the check; existing matches backfilled in bulk
+
+## Step 8c — Apply UX + Stale-Job Cleanup `[DONE]`
+
+- **Auto apply button only on auto-capable jobs** (`apply_mechanism === 'auto'`); manual/unknown jobs show the badge + Mark applied only
+- **Per-job status**: `GET /jobs/matches` returns `apply_status` (from the attempt) — cards show `applying…` (button disabled), `auto-apply failed`, `needs manual apply`; banner still reports each result
+- **Retry**: a `failed` attempt is reset and re-dispatched on the next click (409 kept for pending/running/applied/manual_required)
+- **Stale jobs**: `JOB_EXPIRY_DAYS` 60 → 30; the daily archive beat now also archives Available matches whose *posting date* is >30 days old; purged existing backlog

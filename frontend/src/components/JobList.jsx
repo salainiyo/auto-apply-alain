@@ -11,6 +11,13 @@ function mechanismBadge(mechanism) {
   return <span className="badge bg-gray-100 text-gray-600">manual only</span>
 }
 
+function attemptBadge(status) {
+  if (status === 'pending' || status === 'running') return <span className="badge bg-amber-50 text-amber-700 ring-1 ring-amber-100">applying…</span>
+  if (status === 'failed') return <span className="badge bg-red-50 text-red-700 ring-1 ring-red-100">auto-apply failed</span>
+  if (status === 'manual_required') return <span className="badge bg-gray-100 text-gray-600">needs manual apply</span>
+  return null
+}
+
 function JobCard({ job, onApply, onApplyAuto, showApply, autoPending }) {
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -22,6 +29,7 @@ function JobCard({ job, onApply, onApplyAuto, showApply, autoPending }) {
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           {localityBadge(job.locality)}
           {mechanismBadge(job.apply_mechanism)}
+          {attemptBadge(job.apply_status)}
           {job.job_type && <span className="badge bg-gray-100 text-gray-600">{job.job_type}</span>}
           <span className="badge-source">{job.source}</span>
           {job.posted_at && <span className="text-xs text-gray-400">{new Date(job.posted_at).toLocaleDateString()}</span>}
@@ -32,9 +40,15 @@ function JobCard({ job, onApply, onApplyAuto, showApply, autoPending }) {
         {showApply && (
           <>
             <button onClick={() => onApply(job.id)} className="btn-secondary">Mark applied</button>
-            <button onClick={() => onApplyAuto(job.id)} disabled={autoPending} className="btn-primary">
-              {autoPending ? 'Applying…' : 'Auto apply'}
-            </button>
+            {job.apply_mechanism === 'auto' && (
+              <button
+                onClick={() => onApplyAuto(job.id)}
+                disabled={autoPending || job.apply_status === 'pending' || job.apply_status === 'running'}
+                className="btn-primary"
+              >
+                {autoPending || job.apply_status === 'pending' || job.apply_status === 'running' ? 'Applying…' : 'Auto apply'}
+              </button>
+            )}
           </>
         )}
         {job.status === 'applied' && <span className="badge bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">applied</span>}

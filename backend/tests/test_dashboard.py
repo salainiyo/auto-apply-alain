@@ -208,3 +208,27 @@ async def test_applied_and_archived_not_affected_by_auto_archive(ctx):
 
 async def test_auto_archive_empty_db_is_noop(ctx):
     worker_tasks.archive_expired_matches.run()
+
+
+async def test_auto_archive_stale_posting_date(ctx):
+    headers = await auth_headers(ctx, email="stale@test.com")
+    user_id = await _get_user_id(ctx, "stale@test.com")
+
+    recent_find = await _make_match(ctx, user_id, status="available", age_days=2)
+    fresh = await _make_match(ctx, user_id, status="available", age_days=1)
+
+    # the recent-find match was actually posted 45 days ago -> stale
+    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+
+    async with ctx.session_factory() as session:
+        row = await session.get(JobMatch, recent_find)
+        row.posted_at = _dt.now(_tz.utc) - _td(days=45)
+        await session.commit()
+
+    worker_tasks.archive_expired_matches.run()
+
+    async with ctx.session_factory() as session:
+        stale = await session.get(JobMatch, recent_find)
+        ok = await session.get(JobMatch, fresh)
+        assert stale.status == "archived"   # stale posting date, not age-in-dashboard
+        assert ok.status == "available"

@@ -5,7 +5,7 @@ from app.core.logging import logger
 from app.db import database_sync
 from app.db.models import Resume
 from app.services import progress
-from app.services.job_search_service import search_jobs_for_user as search_jobs_service
+from app.services.job_search_service import JOB_EXPIRY_DAYS, search_jobs_for_user as search_jobs_service
 from app.services.role_service import extract_roles_for_resume
 from app.services.resume_service import run_conversion
 from app.workers.celery_app import celery_app
@@ -155,19 +155,24 @@ def archive_expired_matches() -> None:
     """Beat task: move Available matches older than 14 days to Archived."""
     from datetime import datetime, timedelta, timezone
 
-    from sqlalchemy import update
+    from sqlalchemy import and_, or_, update
 
     from app.db import database_sync
     from app.db.models import JobMatch
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=DASHBOARD_WINDOW_DAYS)
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=DASHBOARD_WINDOW_DAYS)
+    stale_cutoff = now - timedelta(days=JOB_EXPIRY_DAYS)
 
     with database_sync.SyncSessionLocal() as db:
         result = db.execute(
             update(JobMatch)
             .where(
                 JobMatch.status == "available",
-                JobMatch.created_at < cutoff,
+                or_(
+                    JobMatch.created_at < cutoff,
+                    and_(JobMatch.posted_at.is_not(None), JobMatch.posted_at < stale_cutoff),
+                ),
             )
             .values(status="archived")
             .returning(JobMatch.id)

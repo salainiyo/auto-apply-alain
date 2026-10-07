@@ -246,3 +246,50 @@ async def test_application_email_failure_marks_failed(ctx, monkeypatch):
         match_row = await session.get(JobMatch, match.id)
         assert attempt.status == "failed"
         assert match_row.status == "available"
+
+
+async def test_matches_expose_apply_status(ctx, monkeypatch):
+    headers = await auth_headers(ctx, email="stat@t.com")
+    user_id = await _get_user_id(ctx, "stat@t.com")
+    m_failed = await _make_available_match(ctx, user_id, url="https://a.example/j/1")
+    m_plain = await _make_available_match(ctx, user_id, url="https://b.example/j/2")
+
+    async with ctx.session_factory() as session:
+        row = await session.get(JobMatch, m_failed.id)
+        row.apply_mechanism = "auto"
+        session.add(ApplicationAttempt(user_id=user_id, job_match_id=m_failed.id, status="failed"))
+        await session.commit()
+
+    resp = await ctx.client.get("/jobs/matches?status_filter=available", headers=headers)
+    payload = {m["id"]: m for m in resp.json()}
+    assert payload[str(m_failed.id)]["apply_status"] == "failed"
+    assert payload[str(m_failed.id)]["apply_mechanism"] == "auto"
+    assert payload[str(m_plain.id)]["apply_status"] is None
+
+
+async def test_apply_auto_retries_after_failure(ctx, monkeypatch):
+    headers = await auth_headers(ctx, email="retry@t.com")
+    user_id = await _get_user_id(ctx, "retry@t.com")
+    match = await _make_available_match(ctx, user_id)
+
+    async with ctx.session_factory() as session:
+        attempt = ApplicationAttempt(
+            user_id=user_id, job_match_id=match.id, status="failed", detail="boom"
+        )
+        session.add(attempt)
+        await session.commit()
+        await session.refresh(attempt)
+        attempt_id = attempt.id
+
+    monkeypatch.setattr(worker_tasks.apply_to_job, "delay", lambda aid: None)
+    resp = await ctx.client.post(f"/jobs/matches/{match.id}/apply-auto", headers=headers)
+    assert resp.status_code == 202, resp.text
+    assert resp.json()["attempt_id"] == str(attempt_id)
+
+    async with ctx.session_factory() as session:
+        rows = (await session.execute(
+            select(ApplicationAttempt).where(ApplicationAttempt.job_match_id == match.id)
+        )).scalars().all()
+        assert len(rows) == 1  # reset, not duplicated
+        assert rows[0].status == "pending"
+        assert rows[0].detail is None

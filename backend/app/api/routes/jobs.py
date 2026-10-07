@@ -62,7 +62,20 @@ async def list_matches(
         .where(JobMatch.user_id == current_user.id, JobMatch.status == status_filter)
         .order_by(locality_rank, JobMatch.created_at.desc())
     )
-    return result.scalars().all()
+    matches = result.scalars().all()
+
+    if matches:
+        attempt_rows = await db.execute(
+            select(ApplicationAttempt.job_match_id, ApplicationAttempt.status).where(
+                ApplicationAttempt.job_match_id.in_([m.id for m in matches])
+            )
+        )
+        attempt_map = dict(attempt_rows.all())
+    else:
+        attempt_map = {}
+    for match in matches:
+        match.apply_status = attempt_map.get(match.id)
+    return matches
 
 
 @router.post("/matches/{match_id}/apply", response_model=JobMatchResponse)
@@ -106,18 +119,27 @@ async def apply_auto(
     )
     existing_attempt = existing.scalars().first()
     if existing_attempt is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Application attempt already exists with status '{existing_attempt.status}'",
-        )
-
-    attempt = ApplicationAttempt(user_id=current_user.id, job_match_id=match_id, status="pending")
-    db.add(attempt)
-    await db.commit()
-    await db.refresh(attempt)
+        if existing_attempt.status != "failed":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Application attempt already exists with status '{existing_attempt.status}'",
+            )
+        # a failed attempt can be retried: reset the same row instead of duplicating
+        existing_attempt.status = "pending"
+        existing_attempt.cover_letter = None
+        existing_attempt.detail = None
+        await db.commit()
+        await db.refresh(existing_attempt)
+        attempt = existing_attempt
+        logger.info("apply_auto_retry user_id=%s match_id=%s attempt_id=%s", current_user.id, match_id, attempt.id)
+    else:
+        attempt = ApplicationAttempt(user_id=current_user.id, job_match_id=match_id, status="pending")
+        db.add(attempt)
+        await db.commit()
+        await db.refresh(attempt)
+        logger.info("apply_auto_dispatched user_id=%s match_id=%s attempt_id=%s", current_user.id, match_id, attempt.id)
 
     worker_tasks.apply_to_job.delay(str(attempt.id))
-    logger.info("apply_auto_dispatched user_id=%s match_id=%s attempt_id=%s", current_user.id, match_id, attempt.id)
     return {"message": "Auto-apply queued", "attempt_id": str(attempt.id)}
 
 

@@ -204,3 +204,9 @@ def test_job_fingerprint_stable_and_distinct():
     assert fp1 == fp2
     assert fp1 != fp3
     assert fp1 != fp4  # new posting date -> new fingerprint (reopened)
+
+
+def test_expiry_threshold_is_30_days():
+    now = datetime.now(timezone.utc)
+    assert not job_search_service.is_expired({"posted_at": now - timedelta(days=29)})
+    assert job_search_service.is_expired({"posted_at": now - timedelta(days=31)})
